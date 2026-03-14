@@ -23,7 +23,11 @@ const BenefitsSection = () => (
           </div>
         ))}
       </div>
-      <button className="w-full bg-primary text-primary-foreground font-bold text-base py-4 rounded-xl shadow-lg hover:opacity-90 transition-opacity flex flex-col justify-center ">
+      <button
+        type="button"
+        onClick={() => document.getElementById("kits")?.scrollIntoView({ behavior: "smooth" })}
+        className="w-full bg-primary text-primary-foreground font-bold text-base py-4 rounded-xl shadow-lg hover:opacity-90 transition-opacity flex flex-col justify-center "
+      >
         <div className="flex items-center justify-center gap-2">
           GARANTIR MINHA SAÚDE AGORA
         </div>
