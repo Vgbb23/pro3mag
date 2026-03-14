@@ -136,7 +136,7 @@ const HeroSection = () => {
                     ref={videoRef}
                     className="relative h-[28vh] min-h-[200px] max-h-[280px] w-full object-contain sm:h-[360px] sm:min-h-[360px] sm:max-h-none"
                     playsInline
-                    autoPlay
+                    
                     preload="metadata"
                     poster={imgPro3Frasco}
                     disablePictureInPicture

@@ -812,11 +812,11 @@ const Checkout = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="numero" className="text-xs uppercase font-bold">Número <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+                    <Label htmlFor="numero" className="text-xs uppercase font-bold">Número</Label>
                     <Input ref={numeroInputRef} id="numero" placeholder="Nº" value={numero} onChange={(e) => setNumero(e.target.value)} className="mt-1 bg-white" />
                   </div>
                   <div>
-                    <Label htmlFor="complemento" className="text-xs uppercase font-bold">Complemento <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+                    <Label htmlFor="complemento" className="text-xs uppercase font-bold">Complemento</Label>
                     <Input id="complemento" placeholder="Apto, bloco..." value={complemento} onChange={(e) => setComplemento(e.target.value)} className="mt-1 bg-white" />
                   </div>
                 </div>
