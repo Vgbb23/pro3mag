@@ -50,7 +50,7 @@ const KITS = [
     price: 47.90,
     oldPrice: 119.98,
     discount: "-60%",
-    qty: 2,
+    qty: 1,
   },
   {
     id: "combo",
@@ -174,7 +174,7 @@ const Checkout = () => {
       : imgKit3;
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [quantity, setQuantity] = useState(selectedKit.qty);
+  const [quantity, setQuantity] = useState(1);
   const [pixExpiresIn, setPixExpiresIn] = useState(60 * 60); // 1h para expirar PIX
   const [showPixCopiedModal, setShowPixCopiedModal] = useState(false);
   const [isCopyingPix, setIsCopyingPix] = useState(false);
@@ -981,7 +981,7 @@ const Checkout = () => {
               <div className="mx-auto inline-flex rounded-2xl border border-border bg-white p-3">
                 {pixQrCodeBase64 ? (
                   <img
-                    src={`data:image/png;base64,${pixQrCodeBase64}`}
+                    src={`${pixQrCodeBase64}`}
                     alt="QR Code PIX"
                     className="h-52 w-52"
                   />
