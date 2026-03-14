@@ -206,6 +206,22 @@ const Checkout = () => {
   const numeroInputRef = useRef<HTMLInputElement>(null);
   const addPaymentInfoFiredRef = useRef(false);
   const orderPaidHandledRef = useRef(false);
+  const pollPayloadRef = useRef<{
+    selectedKit: typeof selectedKit;
+    selectedKitImage: string;
+    quantity: number;
+    bumpsSelected: { id: string; name: string; price: number; image: string }[];
+    selectedShipping: (typeof SHIPPING_OPTIONS)[0] | undefined;
+    shippingCost: number;
+    total: number;
+    cep: string;
+    estado: string;
+    cidade: string;
+    rua: string;
+    numero: string;
+    complemento: string;
+    email: string;
+  } | null>(null);
 
   // Meta Pixel: InitiateCheckout ao acessar o checkout
   useEffect(() => {
@@ -278,6 +294,23 @@ const Checkout = () => {
   const kitOldSubtotal = selectedKit.oldPrice * quantity;
   const total = kitSubtotal + shippingCost + bumpsTotal;
   const oldTotal = kitOldSubtotal + shippingCost + bumpsOldTotal;
+
+  pollPayloadRef.current = {
+    selectedKit,
+    selectedKitImage,
+    quantity,
+    bumpsSelected,
+    selectedShipping,
+    shippingCost,
+    total,
+    cep,
+    estado,
+    cidade,
+    rua,
+    numero,
+    complemento,
+    email,
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -368,12 +401,14 @@ const Checkout = () => {
     return () => clearInterval(timer);
   }, [step]);
 
-  // Poll order status a cada 300ms; quando paid_at !== null, dispara Purchase e redireciona
+  // Poll order status a cada 300ms; quando paid_at !== null, dispara Purchase uma vez e redireciona
   useEffect(() => {
     if (step !== 3 || !pixOrderId || !FRUITFY_API_TOKEN || !FRUITFY_STORE_ID) return;
 
+    let cancelled = false;
+
     const poll = async () => {
-      if (orderPaidHandledRef.current) return;
+      if (orderPaidHandledRef.current || cancelled) return;
       try {
         const response = await fetch(`https://api.fruitfy.io/api/order/${pixOrderId}`, {
           headers: {
@@ -382,15 +417,23 @@ const Checkout = () => {
             Accept: "application/json",
           },
         });
+        if (cancelled) return;
         const json = await response.json().catch(() => ({}));
         const data = json?.data ?? json ?? {};
         if (data.paid_at == null) return;
 
+        if (orderPaidHandledRef.current) return;
         orderPaidHandledRef.current = true;
 
-        const value = (data.total_paid_amount ?? data.total_net_amount ?? 0) / 100;
+        const payload = pollPayloadRef.current;
+        if (!payload) return;
+
+        const apiValueCents = data.total_paid_amount || data.total_net_amount || 0;
+        const valueInReais = apiValueCents / 100;
+        const value = valueInReais > 0 ? valueInReais : payload.total;
+
         const productName =
-          data.product?.name ?? data.items?.[0]?.name ?? selectedKit.title;
+          data.product?.name ?? data.items?.[0]?.name ?? payload.selectedKit.title;
         const contentIds = data.items?.map((i: { id?: string }) => i.id).filter(Boolean) ?? [data.id];
 
         window.fbq?.("track", "Purchase", {
@@ -399,28 +442,35 @@ const Checkout = () => {
           content_name: productName,
           content_ids: contentIds,
           order_id: data.id ?? data.short_id ?? pixOrderId,
-          num_items: quantity + bumpsSelected.length,
+          num_items: payload.quantity + payload.bumpsSelected.length,
         });
 
         const orderId = data.id ?? data.short_id ?? pixOrderId;
         const receipt = {
           mainProduct: {
-            title: selectedKit.title,
-            subtitle: selectedKit.subtitle,
-            price: selectedKit.price,
-            quantity,
-            imageUrl: selectedKitImage,
+            title: payload.selectedKit.title,
+            subtitle: payload.selectedKit.subtitle,
+            price: payload.selectedKit.price,
+            quantity: payload.quantity,
+            imageUrl: payload.selectedKitImage,
           },
-          bumps: bumpsSelected.map((b) => ({
+          bumps: payload.bumpsSelected.map((b) => ({
             name: b.name,
             price: b.price,
             imageUrl: b.image,
           })),
-          shippingLabel: selectedShipping?.label ?? "Frete",
-          shippingCost,
-          total,
-          address: { cep, estado, cidade, rua, numero, complemento },
-          email,
+          shippingLabel: payload.selectedShipping?.label ?? "Frete",
+          shippingCost: payload.shippingCost,
+          total: payload.total,
+          address: {
+            cep: payload.cep,
+            estado: payload.estado,
+            cidade: payload.cidade,
+            rua: payload.rua,
+            numero: payload.numero,
+            complemento: payload.complemento,
+          },
+          email: payload.email,
           orderId,
           trackingCode: null as string | null,
         };
@@ -437,10 +487,12 @@ const Checkout = () => {
     };
 
     const intervalId = setInterval(poll, 300);
-    poll();
 
-    return () => clearInterval(intervalId);
-  }, [step, pixOrderId, selectedKit.title, quantity, bumpsSelected.length, navigate]);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [step, pixOrderId, navigate]);
 
   const handlesecondaryAction = async () => {
     if (step === 1) {
