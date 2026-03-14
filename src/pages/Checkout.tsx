@@ -204,6 +204,22 @@ const Checkout = () => {
   const [bumps, setBumps] = useState<string[]>([]);
   const [cpfError, setCpfError] = useState<string | null>(null);
   const numeroInputRef = useRef<HTMLInputElement>(null);
+  const addPaymentInfoFiredRef = useRef(false);
+  const orderPaidHandledRef = useRef(false);
+
+  // Meta Pixel: InitiateCheckout ao acessar o checkout
+  useEffect(() => {
+    window.fbq?.("track", "InitiateCheckout");
+  }, []);
+
+  // Meta Pixel: AddPaymentInfo quando preencher algum campo (uma vez só)
+  const checkoutFieldsFilled =
+    [nome, email, telefone, cpf, cep, estado, cidade, rua, numero].some((v) => String(v).trim() !== "");
+  useEffect(() => {
+    if (!checkoutFieldsFilled || addPaymentInfoFiredRef.current) return;
+    addPaymentInfoFiredRef.current = true;
+    window.fbq?.("track", "AddPaymentInfo");
+  }, [checkoutFieldsFilled]);
 
   // CEP auto-fill
   useEffect(() => {
@@ -352,6 +368,80 @@ const Checkout = () => {
     return () => clearInterval(timer);
   }, [step]);
 
+  // Poll order status a cada 300ms; quando paid_at !== null, dispara Purchase e redireciona
+  useEffect(() => {
+    if (step !== 3 || !pixOrderId || !FRUITFY_API_TOKEN || !FRUITFY_STORE_ID) return;
+
+    const poll = async () => {
+      if (orderPaidHandledRef.current) return;
+      try {
+        const response = await fetch(`https://api.fruitfy.io/api/order/${pixOrderId}`, {
+          headers: {
+            Authorization: `Bearer ${FRUITFY_API_TOKEN}`,
+            "Store-Id": FRUITFY_STORE_ID,
+            Accept: "application/json",
+          },
+        });
+        const json = await response.json().catch(() => ({}));
+        const data = json?.data ?? json ?? {};
+        if (data.paid_at == null) return;
+
+        orderPaidHandledRef.current = true;
+
+        const value = (data.total_paid_amount ?? data.total_net_amount ?? 0) / 100;
+        const productName =
+          data.product?.name ?? data.items?.[0]?.name ?? selectedKit.title;
+        const contentIds = data.items?.map((i: { id?: string }) => i.id).filter(Boolean) ?? [data.id];
+
+        window.fbq?.("track", "Purchase", {
+          value,
+          currency: "BRL",
+          content_name: productName,
+          content_ids: contentIds,
+          order_id: data.id ?? data.short_id ?? pixOrderId,
+          num_items: quantity + bumpsSelected.length,
+        });
+
+        const orderId = data.id ?? data.short_id ?? pixOrderId;
+        const receipt = {
+          mainProduct: {
+            title: selectedKit.title,
+            subtitle: selectedKit.subtitle,
+            price: selectedKit.price,
+            quantity,
+            imageUrl: selectedKitImage,
+          },
+          bumps: bumpsSelected.map((b) => ({
+            name: b.name,
+            price: b.price,
+            imageUrl: b.image,
+          })),
+          shippingLabel: selectedShipping?.label ?? "Frete",
+          shippingCost,
+          total,
+          address: { cep, estado, cidade, rua, numero, complemento },
+          email,
+          orderId,
+          trackingCode: null as string | null,
+        };
+        try {
+          localStorage.setItem("last_order_receipt", JSON.stringify(receipt));
+        } catch {
+          // ignora falha ao salvar
+        }
+
+        navigate("/obrigado", { state: { order: data }, replace: true });
+      } catch {
+        // ignora erro da requisição e continua polling
+      }
+    };
+
+    const intervalId = setInterval(poll, 300);
+    poll();
+
+    return () => clearInterval(intervalId);
+  }, [step, pixOrderId, selectedKit.title, quantity, bumpsSelected.length, navigate]);
+
   const handlesecondaryAction = async () => {
     if (step === 1) {
       const trimmedName = nome.trim();
@@ -455,9 +545,23 @@ const Checkout = () => {
       setPixError(null);
 
       try {
-        const amount = items.reduce((sum, item) => sum + item.value * item.quantity, 0);
-
-        console.log(items);
+        const UTM_KEYS = ["utm_campaign", "utm_content", "utm_medium", "utm_source", "utm_term"];
+        const urlParamsRaw = localStorage.getItem("url_params");
+        const urlParams: Record<string, string> = urlParamsRaw
+          ? (() => {
+              try {
+                return JSON.parse(urlParamsRaw);
+              } catch {
+                return {};
+              }
+            })()
+          : {};
+        const utm: Record<string, string> = {};
+        for (const key of UTM_KEYS) {
+          if (urlParams[key] != null && String(urlParams[key]).trim() !== "") {
+            utm[key] = String(urlParams[key]).trim();
+          }
+        }
 
         const response = await fetch("https://api.fruitfy.io/api/pix/charge", {
           method: "POST",
@@ -474,8 +578,10 @@ const Checkout = () => {
             "cpf": cpfDigits,
             "items": items.map((item) => ({
               "id": item.id,
+              "quantity": item.quantity,
               "value": item.value,
             })),
+            utm,
           }),
         });
 
