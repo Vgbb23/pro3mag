@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Truck, Zap, Flame, Gift, Star } from "lucide-react";
 import imgKit1 from "@/assets/carousel/pro3-1frasco-DoEkzZOt.webp";
 import imgKit2 from "@/assets/carousel/kit-2-potes-DPseiwcU.png";
@@ -47,6 +47,7 @@ const kits = [
 
 const PricingSection = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const kitIds = ["1un", "2un", "combo"];
   return (
     <section className="py-10 px-4 bg-card" id="kits">
@@ -99,7 +100,17 @@ const PricingSection = () => {
                     </div>
                   </div>
                 </div>
-                <button onClick={() => navigate(`/checkout?kit=${kitIds[index]}`)} className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                <button
+                  onClick={() => {
+                    const nextParams = new URLSearchParams(location.search);
+                    nextParams.set("kit", kitIds[index]);
+                    navigate({
+                      pathname: "/checkout",
+                      search: `?${nextParams.toString()}`,
+                    });
+                  }}
+                  className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
                   COMPRAR AGORA
                 </button>
               </div>

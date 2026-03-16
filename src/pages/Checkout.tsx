@@ -683,7 +683,14 @@ const Checkout = () => {
         <div className="container max-w-2xl mx-auto flex items-center justify-between py-3 px-4">
           {step !== 3 && (
             <button
-              onClick={() => navigate("/")}
+              onClick={() => {
+                const homeParams = new URLSearchParams(params);
+                homeParams.delete("kit");
+                navigate({
+                  pathname: "/",
+                  search: homeParams.toString() ? `?${homeParams.toString()}` : "",
+                });
+              }}
               className={`flex items-center gap-1 text-sm transition-colors text-muted-foreground hover:text-foreground`}
             >
               <ArrowLeft className="w-4 h-4" /> Voltar
